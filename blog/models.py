@@ -1,11 +1,11 @@
-from django.contrib.auth.models import User
+from django.conf import settings
 from django.db import models
 from django.db.models import Avg
 
 
 class Post(models.Model):
     author = models.ForeignKey(
-        User,
+        settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name='posts'
     )
@@ -27,7 +27,7 @@ class Comment(models.Model):
         related_name='comments'
     )
     author = models.ForeignKey(
-        User,
+        settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name='comments'
     )
@@ -37,4 +37,4 @@ class Comment(models.Model):
     is_approved = models.BooleanField(default=True)
 
     def __str__(self):
-        return f"{self.author.username}: {self.body[:20]}"
+        return f"{self.author.email}: {self.body[:20]}"

@@ -6,7 +6,7 @@ from django.contrib.auth.models import User
 class PostSerializer(serializers.ModelSerializer):
     title = serializers.CharField(min_length=2)
     body = serializers.CharField(min_length=5)
-    author = serializers.ReadOnlyField(source='author.username')
+    author = serializers.ReadOnlyField(source='author.email')
     comments_count = serializers.IntegerField(read_only=True)
 
     class Meta:
@@ -17,7 +17,7 @@ class PostSerializer(serializers.ModelSerializer):
 
 
 class CommentSerializer(serializers.ModelSerializer):
-    author = serializers.ReadOnlyField(source='author.username')
+    author = serializers.ReadOnlyField(source='author.email')
 
     class Meta:
         model = Comment
