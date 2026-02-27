@@ -7,11 +7,11 @@ from rest_framework import permissions
 from rest_framework.exceptions import PermissionDenied
 from .models import Post, Comment
 from .serializers import PostSerializer, CommentSerializer, CommentValidateSerializer
+from common.permissions import IsModerator
 
 class PostViewSet(ModelViewSet):   
     serializer_class = PostSerializer  
-    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
-
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly | IsModerator]
     def get_queryset(self):
         return Post.objects.filter(is_published=True).annotate(
             comments_count=Count('comments')
@@ -23,12 +23,12 @@ class PostViewSet(ModelViewSet):
 
     def perform_update(self, serializer):
         instance = self.get_object()
-        if instance.author != self.request.user:
+        if instance.author != self.request.user and not self.request.user.is_staff:
             raise PermissionDenied("You are not the owner!")
         serializer.save()
 
     def perform_destroy(self, instance):
-        if instance.author != self.request.user:
+        if instance.author != self.request.user and not self.request.user.is_staff:
             raise PermissionDenied("You are not the owner!")
         instance.delete()
 
@@ -51,8 +51,7 @@ class PostViewSet(ModelViewSet):
         
 class CommentViewSet(ModelViewSet):
     serializer_class = CommentSerializer
-    permission_classes = [IsAuthenticatedOrReadOnly]
-
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly | IsModerator]
     def get_queryset(self):
         if self.request.user.is_authenticated:
             return Comment.objects.all()
@@ -60,11 +59,12 @@ class CommentViewSet(ModelViewSet):
 
     def perform_update(self, serializer):
         instance = self.get_object()
-        if instance.author != self.request.user:
+        if instance.author != self.request.user and not self.request.user.is_staff:
             raise PermissionDenied("You are not the owner!")
         serializer.save()
 
     def perform_destroy(self, instance):
-        if instance.author != self.request.user:
+        if instance.author != self.request.user and not self.request.user.is_staff:
             raise PermissionDenied("You are not the owner!")
         instance.delete()
+    
