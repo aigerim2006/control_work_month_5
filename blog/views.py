@@ -9,31 +9,53 @@ from .models import Post, Comment
 from .serializers import PostSerializer, CommentSerializer, CommentValidateSerializer
 from common.permissions import IsModerator
 
-class PostViewSet(ModelViewSet):   
+class PostViewSet(ModelViewSet):  
+    queryset = Post.objects.filter(is_published=True).annotate(
+        comments_count=Count("comments")
+    ) 
     serializer_class = PostSerializer  
     permission_classes = [permissions.IsAuthenticatedOrReadOnly | IsModerator]
-    def get_queryset(self):
-        return Post.objects.filter(is_published=True).annotate(
-            comments_count=Count('comments')
+    
+    
+    def create(self, request, *args, **kwargs):
+        serializer = PostSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        post = Post.objects.create(
+            author=request.user,
+            title=serializer.validated_data.get("title"),
+            body=serializer.validated_data.get("body"),
+            is_published=serializer.validated_data.get("is_published", False),
         )
 
-    def perform_create(self, serializer):
-        serializer.save(author=self.request.user)
+        return Response(PostSerializer(post).data, status=status.HTTP_201_CREATED)
 
+    def update(self, request, *args, **kwargs):
+        post = self.get_object()
 
-    def perform_update(self, serializer):
-        instance = self.get_object()
-        if instance.author != self.request.user and not self.request.user.is_staff:
+        if post.author != request.user and not request.user.is_staff:
             raise PermissionDenied("You are not the owner!")
+
+        serializer = PostSerializer(post, data=request.data)
+        serializer.is_valid(raise_exception=True)
         serializer.save()
 
-    def perform_destroy(self, instance):
-        if instance.author != self.request.user and not self.request.user.is_staff:
+        return Response(PostSerializer(post).data)
+    
+
+    def destroy(self, request, *args, **kwargs):
+        post = self.get_object()
+
+        if post.author != request.user and not request.user.is_staff:
             raise PermissionDenied("You are not the owner!")
-        instance.delete()
+
+        post.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
 
     @action(detail=True, methods=['get', 'post'])
     def comments(self, request, pk=None):
+        post = self.get_object()
         if request.method == 'GET':
             comments = Comment.objects.filter(post_id=pk, is_approved=True)
             return Response(CommentSerializer(comments, many=True).data)
@@ -47,9 +69,11 @@ class PostViewSet(ModelViewSet):
                 author=request.user,
                 body=serializer.validated_data['body']
             )
-            return Response(CommentSerializer(comment).data)
+            return Response(CommentSerializer(comment).data,
+                status=status.HTTP_201_CREATED)
         
 class CommentViewSet(ModelViewSet):
+    queryset = Comment.objects.all()
     serializer_class = CommentSerializer
     permission_classes = [permissions.IsAuthenticatedOrReadOnly | IsModerator]
     def get_queryset(self):
@@ -57,14 +81,25 @@ class CommentViewSet(ModelViewSet):
             return Comment.objects.all()
         return Comment.objects.filter(is_approved=True)
 
-    def perform_update(self, serializer):
-        instance = self.get_object()
-        if instance.author != self.request.user and not self.request.user.is_staff:
+    def update(self, request, *args, **kwargs):
+        comment = self.get_object()
+
+        if comment.author != request.user and not request.user.is_staff:
             raise PermissionDenied("You are not the owner!")
+
+        serializer = CommentSerializer(comment, data=request.data)
+        serializer.is_valid(raise_exception=True)
         serializer.save()
 
-    def perform_destroy(self, instance):
-        if instance.author != self.request.user and not self.request.user.is_staff:
+        return Response(CommentSerializer(comment).data)
+
+
+    def destroy(self, request, *args, **kwargs):
+        comment = self.get_object()
+
+        if comment.author != request.user and not request.user.is_staff:
             raise PermissionDenied("You are not the owner!")
-        instance.delete()
-    
+
+        comment.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+

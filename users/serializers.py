@@ -1,6 +1,8 @@
 from rest_framework import serializers
 from .models import CustomUser, ConfirmCode
 from rest_framework.exceptions import ValidationError
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+
 
 
 class UserCreateSerializer(serializers.ModelSerializer):
@@ -51,3 +53,11 @@ class ConfirmSerializer(serializers.Serializer):
         attrs['user'] = user
         return attrs
     
+class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
+    @classmethod
+    def get_token(cls, user):
+        token = super().get_token(user)
+        token["email"] = user.email
+        token["user_id"] = user.id
+        token["birthdate"] = user.birthdate.isoformat() if user.birthdate else None  # <-- добавили birthdate
+        return token

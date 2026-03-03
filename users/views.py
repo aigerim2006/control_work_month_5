@@ -11,6 +11,8 @@ from rest_framework.permissions import AllowAny
 from django.contrib.auth import authenticate
 from rest_framework.decorators import action 
 from django.contrib.auth import get_user_model
+from rest_framework_simplejwt.views import TokenObtainPairView
+from users.serializers import CustomTokenObtainPairSerializer
 
 class UserViewSet(viewsets.ViewSet):
     authentication_classes = [] 
@@ -46,3 +48,6 @@ class UserViewSet(viewsets.ViewSet):
             return Response({"error": "User not confirmed"}, status=401)
         token, _ = Token.objects.get_or_create(user=user)
         return Response({"token": token.key})
+
+class CustomTokenObtainPairView(TokenObtainPairView):
+    serializer_class = CustomTokenObtainPairSerializer
