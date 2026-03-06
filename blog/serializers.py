@@ -27,4 +27,7 @@ class CommentSerializer(serializers.ModelSerializer):
 class CommentValidateSerializer(serializers.Serializer):
     body = serializers.CharField(min_length=2)
     
-    
+
+class OauthCodeSerializer(serializers.Serializer):
+    code = serializers.CharField()
+
