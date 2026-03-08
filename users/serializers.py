@@ -2,7 +2,7 @@ from rest_framework import serializers
 from .models import CustomUser, ConfirmCode
 from rest_framework.exceptions import ValidationError
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
-
+from common.redis_client import redis_client
 
 
 class UserCreateSerializer(serializers.ModelSerializer):
@@ -61,3 +61,32 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         token["user_id"] = user.id
         token["birthdate"] = user.birthdate.isoformat() if user.birthdate else None  # <-- добавили birthdate
         return token
+    
+class ConfirmCodeSerializer(serializers.Serializer):
+
+    email = serializers.EmailField()
+    code = serializers.CharField()
+
+    def validate(self, attrs):
+
+        email = attrs["email"]
+        code = attrs["code"]
+
+        key = f"confirm_code:{email}"
+
+        redis_code = redis_client.get(key)
+
+        if not redis_code:
+            raise serializers.ValidationError(
+                "Код подтверждения истёк или не существует!"
+            )
+
+        if redis_code != code:
+            raise serializers.ValidationError(
+                "Неверный код подтверждения!"
+            )
+
+        # Удаляем код после использования
+        redis_client.delete(key)
+
+        return attrs

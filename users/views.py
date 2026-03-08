@@ -5,8 +5,8 @@ from rest_framework.authtoken.models import Token
 from .models import CustomUser
 from django.contrib.auth import authenticate
 from .serializers import UserCreateSerializer, UserAuthSerializer, ConfirmSerializer
-from .models import ConfirmCode
-import random
+from users.services import save_confirmation_code
+from common.redis_client import redis_client
 from rest_framework.permissions import AllowAny
 from django.contrib.auth import authenticate
 from rest_framework.decorators import action 
@@ -22,18 +22,27 @@ class UserViewSet(viewsets.ViewSet):
         serializer = UserCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.save() 
-        code = str(random.randint(100000, 999999))
-        ConfirmCode.objects.create(user=user, code=code)
-        return Response({"user_id": user.id, "confirm_code": code}, status=status.HTTP_201_CREATED)
-
+        code = save_confirmation_code(user.email)
+        return Response(
+            {"user_id": user.id, "confirm_code": code},
+        status=status.HTTP_201_CREATED
+        )
+    
     @action(detail=False, methods=['post'])
     def confirm_user(self, request):
         serializer = ConfirmSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.validated_data['user']
+        code = serializer.validated_data['code']
+        key = f"confirm_code:{user.email}"
+        redis_code = redis_client.get(key)
+        if not redis_code:
+            return Response({"error": "Код истек"}, status=400)
+        if redis_code != code:
+            return Response({"error": "Неверный код"}, status=400)
         user.is_active = True
         user.save()
-        ConfirmCode.objects.filter(user=user).delete()
+        redis_client.delete(key)
         return Response({"message": "User confirmed"})
 
 
@@ -51,3 +60,4 @@ class UserViewSet(viewsets.ViewSet):
 
 class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
+
