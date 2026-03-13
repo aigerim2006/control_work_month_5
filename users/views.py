@@ -3,16 +3,15 @@ from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
 from rest_framework.authtoken.models import Token
 from .models import CustomUser
-from django.contrib.auth import authenticate
 from .serializers import UserCreateSerializer, UserAuthSerializer, ConfirmSerializer
 from users.services import save_confirmation_code
 from common.redis_client import redis_client
-from rest_framework.permissions import AllowAny
 from django.contrib.auth import authenticate
 from rest_framework.decorators import action 
 from django.contrib.auth import get_user_model
 from rest_framework_simplejwt.views import TokenObtainPairView
 from users.serializers import CustomTokenObtainPairSerializer
+from users.tasks import generate_report, send_welcome_email
 
 class UserViewSet(viewsets.ViewSet):
     authentication_classes = [] 
@@ -22,7 +21,9 @@ class UserViewSet(viewsets.ViewSet):
         serializer = UserCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.save() 
+        generate_report.delay(user.id)
         code = save_confirmation_code(user.email)
+        send_welcome_email.delay(user.email)
         return Response(
             {"user_id": user.id, "confirm_code": code},
         status=status.HTTP_201_CREATED
