@@ -1,67 +1,90 @@
 
 
 services:
-
-  backend:
-    build:
-      context: .
-    command: >
-      sh -c "
-      sleep 5 &&
-      python manage.py migrate &&
-      python manage.py runserver 0.0.0.0:8000
-      "
-
-    ports:
-      - "8000:8000"
-    depends_on:
-      - db
-      - redis
-    env_file:
-      - .env
-    volumes:
-      - .:/app
-
+  web:
+      container_name: web
+      restart: always
+      build:
+        context: .
+      command: sh /app/entrypoint.sh
+      volumes:
+        - .:/app
+        - back_static:/app/static
+        - back_media:/app/media
+      ports:            
+        - "8000:8000"
+      env_file:
+        - .env
+      depends_on:
+        - db
+        - redis
+    
   db:
-    image: 'postgres:15'
-    env_file:
-      - .env
-    environment:
-      POSTGRES_DB: '${DB_NAME}'
-      POSTGRES_USER: '${DB_USER}'
-      POSTGRES_PASSWORD: '${DB_PASSWORD}'
-    ports:
-      - "5433:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
+      container_name: db
+      image: 'postgres:15'
+      env_file:
+        - .env
+      environment:
+        POSTGRES_DB: '${DB_NAME}'
+        POSTGRES_USER: '${DB_USER}'
+        POSTGRES_PASSWORD: '${DB_PASSWORD}'
+      ports:
+        - "5433:5432"
+      volumes:
+        - db_data:/var/lib/postgresql/data
   redis:
-    image: redis:7
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
+      image: redis:7
+      volumes:
+        - redis_data:/data
+
   celery_worker:
-    build:
-      context: .
-    command: celery -A config worker -l info
-    depends_on:
-      - backend
-      - redis
-    env_file:
-      - .env
-    volumes:
-      - .:/app
+      build:
+        context: .
+      command: celery -A config worker -l info
+      depends_on:
+        - web
+        - redis
+      env_file:
+        - .env
+      volumes:
+        - .:/app
   celery_beat:
+      build:
+        context: .
+      command: celery -A config beat -l info
+      depends_on:
+        - web
+        - redis
+      env_file:
+        - .env
+      volumes:
+        - .:/app
+  celery_flower:
     build:
       context: .
-    command: celery -A config beat -l info
+    command: celery -A shop_api flower --port=5555
     depends_on:
-      - backend
       - redis
+    ports:
+      - "5556:5555"
     env_file:
       - .env
     volumes:
       - .:/app
+
+  nginx:
+    image: nginx:1.25
+    ports:
+      - "80:80"
+    depends_on:
+      - web
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf
+      - back_media:/app/media
+      - back_static:/app/static
+
 volumes:
-  postgres_data:
-  redis_data:
+    db_data:
+    redis_data:
+    back_media:
+    back_static:
